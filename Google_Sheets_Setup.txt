@@ -1,0 +1,68 @@
+คู่มือการตั้งค่า Google Sheets ให้เป็นฐานข้อมูล
+===================================================
+เพื่อความปลอดภัย ข้อมูลจะถูกเก็บไว้ใน Google Sheets ส่วนตัวของคุณ
+ให้ทำตาม 3 ขั้นตอนนี้:
+
+ขั้นตอนที่ 1: สร้าง Google Sheets
+1. ไปที่ https://sheets.google.com/ แล้วล็อคอิน Gmail ของคุณ
+2. สร้างไฟล์เปล่า (Blank) ตั้งชื่อว่า Daycare_Database (ไม่ต้องสร้างแท็บอะไรทั้งสิ้น)
+
+ขั้นตอนที่ 2: วางโค้ด Apps Script
+1. ที่เมนูด้านบน เลือก ส่วนขยาย (Extensions) > Apps Script
+2. ลบโค้ดเดิมออกให้หมด แล้วก๊อปปี้โค้ดด้านล่างนี้ไปวางทับ:
+
+function doGet(e) {
+  var action = e.parameter.action;
+  if (action === 'read') {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheets = ss.getSheets();
+    var result = {};
+    sheets.forEach(function(sheet) {
+      var name = sheet.getName();
+      var data = sheet.getDataRange().getValues();
+      if (data.length > 1) {
+        var headers = data[0];
+        var rows = data.slice(1);
+        result[name] = rows.map(function(row) {
+          var obj = {};
+          headers.forEach(function(header, i) { obj[header] = row[i]; });
+          return obj;
+        });
+      } else {
+        result[name] = [];
+      }
+    });
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+function doPost(e) {
+  var payload = JSON.parse(e.postData.contents);
+  var action = payload.action;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (action === 'write') {
+    var sheetName = payload.sheet;
+    var data = payload.data;
+    var sheet = ss.getSheetByName(sheetName);
+    if (!sheet) sheet = ss.insertSheet(sheetName);
+    sheet.clearContents();
+    if (data && data.length > 0) {
+      var headers = Object.keys(data[0]);
+      sheet.appendRow(headers);
+      var rows = data.map(function(obj) {
+        return headers.map(function(h) { return typeof obj[h] === 'object' ? JSON.stringify(obj[h]) : obj[h]; });
+      });
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+    return ContentService.createTextOutput(JSON.stringify({success: true})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+3. กดปุ่มรูปแผ่นดิสก์เพื่อ Save
+
+ขั้นตอนที่ 3: ทำให้ใช้งานได้ (Deploy)
+1. กดปุ่มสีน้ำเงินมุมขวาบน "การทำให้ใช้งานได้" (Deploy) > "การทำให้ใช้งานได้รายการใหม่" (New deployment)
+2. คลิกไอคอนเฟืองด้านซ้าย เลือก "เว็บแอป" (Web app)
+3. รันในฐานะ: "ฉัน"
+4. ผู้ที่มีสิทธิ์เข้าถึง: เลือก "ทุกคน" (Anyone) **สำคัญมาก**
+5. กด Deploy และก๊อปปี้ URL ที่ได้มา ไปใส่ในเมนู "ตั้งค่าฐานข้อมูล" ในโปรแกรม Daycare ได้เลย!
